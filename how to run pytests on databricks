@@ -1,0 +1,70 @@
+# Python package
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+
+name: Microsoft-DataTeam-unit-testing-Pytest
+
+pr: none
+trigger: none
+
+pool: 'Self-Hosted Agent Pool'
+
+variables:
+  - group: 'DevDatabricksConnection'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.9'
+    architecture: 'x64'
+
+- script: |
+    python -m pip install --upgrade pip
+    python -m pip install pytest pytest-azurepipelines
+    python -m pip install pytest-cov
+    pip install pytest-databricks
+    python -m pip install codecov
+    python -m pip install pyspark_assert
+    python -m pip install mock
+    python -m pip install pydocstyle
+    python -m pip install -U "databricks-connect==11.3.21"
+  displayName: 'Install dependencies'
+
+- bash: |
+    databricks-connect configure <<EOF
+    y
+    $(DATABRICKS-HOST)
+    $(DATABRICKS-PAT)
+    $(DATABRICKS-CLUSTER-ID)
+    $(DATABRICKS-WORKSPACE-ORG-ID)
+    15001
+    EOF
+    echo $(DATABRICKS-HOST)
+    echo $(DATABRICKS-PAT) 
+    echo $(DATABRICKS-CLUSTER-ID)
+    echo $(DATABRICKS-WORKSPACE-ORG-ID)
+    databricks-connect test
+
+  displayName: 'Configure DBConnect'
+
+- script: |
+    pytest -v Databricks/FunctionTests/ --continue-on-collection-errors --doctest-modules --junitxml=unit-testresults.xml --cov=Databricks/ --cov-append --cov-report=xml:coverage.xml
+  displayName: 'Pytest on all functions created'
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '**/*test-results.xml'
+    testRunTitle: '$(Agent.OS) - $(Build.BuildNumber)[$(Agent.JobName)] - Python $(python.version) - Unit Test results'
+  condition: succeededOrFailed()
+  displayName: 'Publish unit test and linting results'
+
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: Cobertura
+    summaryFileLocation: '**/*coverage.xml'
+    reportDirectory: 'htmlcov'
+    pathToSources: $(System.DefaultWorkingDirectory)/Databricks/
+    additionalCodeCoverageFiles: $(System.DefaultWorkingDirectory)/**/*functions.py
+  displayName: 'Publish Coverage Results'
