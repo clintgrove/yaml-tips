@@ -1,0 +1,38 @@
+parameters:
+  - name: DatabaseName
+    type: string
+    default: 'lidwhmaster'
+  - name: ServerName 
+    type: string
+    default: 'lz-xxxxxx-uks-syn-01.sql.azuresynapse.net'
+  - name: ServiceConnection
+    type: string
+    default: 'AzDeploy'
+
+trigger:
+- 136452_SQLdml_Cgrove16Nov23
+
+pool: 'Self-Hosted Agent Pool'
+
+variables:
+  - group: 'DataAnalytics-Global'
+
+steps:
+
+  - task: SqlAzureDacpacDeployment@1
+    inputs:
+      azureSubscription: ${{ parameters.ServiceConnection }}
+      AuthenticationType: 'servicePrincipal'
+      DatabaseName: ${{ parameters.DatabaseName }}
+      ServerName: ${{ parameters.ServerName }}
+      SqlUsername : $(Synclientid)
+      SqlPassword: $(Synclientsecret)
+      deployType: 'SqlTask' #'InlineSqlTask' 
+      #SqlInline: 'Select 10'
+      SqlFile: '$(System.DefaultWorkingDirectory)/Scripts/SQL_dml_maintenance/SQLMaintenance202311.sql'
+      IpDetectionMethod: 'AutoDetect'
+
+
+
+
+
